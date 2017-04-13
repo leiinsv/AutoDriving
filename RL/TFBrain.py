@@ -52,7 +52,7 @@ class TFBrain(object):
         self.action = tf.placeholder("float", [None, self.num_actions])
         self.q_value_fact = tf.placeholder("float", [None])
         
-        num_neurons_fc1 = 10
+        num_neurons_fc1 = 100
         num_neurons_fc2 = 10
         
         w_fc1 = tf.Variable(tf.truncated_normal((self.state_dimensions, num_neurons_fc1)))
