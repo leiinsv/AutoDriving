@@ -22,42 +22,45 @@ class RoomEnv():
         reward = 0.0
         new_state = np.zeros_like(state)
         action_idx = np.argmax(action)
-        intended = True
-        # when to move up, in result 10% moves left, 10% right, and 80% up
-        if (not determistic) and (action_idx == 0):
-            prob = random.random()
-            if prob <= 0.1:
-                action_idx = 2
-                intended = False
-            elif prob <= 0.2:
-                action_idx = 3
-                intended = False
-            else:
-                action_idx = 0
-        
-        row, col = self._get_2d_axis(state)
-        if action_idx == 0:
-            row -= 1
-        elif action_idx == 1:
-            row += 1
-        elif action_idx == 2:
-            col -= 1
-        else:
-            col += 1
 
-        valid = self._is_valid(row, col)
-        if valid:
-            self.state = (row, col)
-            new_state = self.get_state()
-            reward = self.step_reward
-            if (row == 0) and (col == 3):
-                reward = 1
-            if (row == 1) and (col == 3):
-                reward = -1
-        elif intended:
-            reward = -100
-        else:
-            reward = self.step_reward
+        while True:
+            intended = True
+            valid = True
+            if (not determistic) and (action_idx == 0):
+                prob = random.random()
+                if prob <= 0.1:
+                    action_idx = 2
+                    intended = False
+                elif prob <= 0.2:
+                    action_idx = 3
+                    intended = False
+                else:
+                    action_idx = 0
+                    intended = True
+        
+            row, col = self._get_2d_axis(state)
+            if action_idx == 0:
+                row -= 1
+            elif action_idx == 1:
+                row += 1
+            elif action_idx == 2:
+                col -= 1
+            else:
+                col += 1
+
+            valid = self._is_valid(row, col)
+            if valid:
+                self.state = (row, col)
+                new_state = self.get_state()
+                reward = self.step_reward
+                if (row == 0) and (col == 3):
+                    reward = 1
+                if (row == 1) and (col == 3):
+                    reward = -1
+                break
+            elif intended:
+                reward = -100
+                break
 
         return reward, new_state, valid
 
@@ -76,9 +79,9 @@ class RoomEnv():
 
     def is_endstate(self, state):
         row, col = self._get_2d_axis(state)
-        if row == 0 and col == self.num_cols - 1:
+        if row == 0 and col == 3:
             return True
-        elif row == 1 and col == self.num_cols -1:
+        elif row == 1 and col == 3:
             return True
         else:
             return False
