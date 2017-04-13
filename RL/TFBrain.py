@@ -3,11 +3,12 @@ import numpy as np
 import tensorflow as tf
 
 class Experience(object):
-    def __init__(self, state, action, reward, new_state):
+    def __init__(self, state, action, reward, new_state, end_flag=False):
         self.state = state
         self.action = action
         self.reward = reward
         self.new_state = new_state
+        self.end_flag = end_flag
 
 class TFBrain(object):
     """
@@ -51,8 +52,8 @@ class TFBrain(object):
         self.action = tf.placeholder("float", [None, self.num_actions])
         self.q_value_fact = tf.placeholder("float", [None])
         
-        num_neurons_fc1 = 100
-        num_neurons_fc2 = 20
+        num_neurons_fc1 = 10
+        num_neurons_fc2 = 10
         
         w_fc1 = tf.Variable(tf.truncated_normal((self.state_dimensions, num_neurons_fc1)))
         b_fc1 = tf.Variable(tf.zeros(num_neurons_fc1))
@@ -79,8 +80,8 @@ class TFBrain(object):
         self.session = tf.Session()
         self.session.run(tf.global_variables_initializer())
     
-    def learn(self, state, action, reward, new_state):
-        e = Experience(state, action, reward, new_state)
+    def learn(self, state, action, reward, new_state, end_flag=False):
+        e = Experience(state, action, reward, new_state, end_flag)
 
         if len(self.experiences) < self.experience_size:
             self.experiences.append(e)
@@ -95,6 +96,7 @@ class TFBrain(object):
             action_batch = [e.action for e in batch]
             reward_batch = [e.reward for e in batch]
             new_state_batch = [e.new_state for e in batch]
+            end_flag_batch = [e.end_flag for e in batch]
 
             q_value_fact_batch = []
 
@@ -102,8 +104,10 @@ class TFBrain(object):
             q_values_batch = self.session.run(self.q_values, feed_dict={self.state:new_state_batch})
 
             for i in range(0, self.batch_size):
-                q_value_fact = reward_batch[i] + self.gamma * np.max(q_values_batch[i])
-                q_value_fact_batch.append(q_value_fact)
+                if end_flag_batch[i]:
+                    q_value_fact_batch.append(reward_batch[i])
+                else:
+                    q_value_fact_batch.append(reward_batch[i] + self.gamma * np.max(q_values_batch[i]))
             
             #backward pass
             self.session.run(self.optimizer, feed_dict={
