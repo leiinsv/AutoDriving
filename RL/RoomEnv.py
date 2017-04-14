@@ -23,45 +23,35 @@ class RoomEnv():
         new_state = np.zeros_like(state)
         action_idx = np.argmax(action)
 
-        while True:
-            intended = True
-            valid = True
-            if (not determistic) and (action_idx == 0):
-                prob = random.random()
-                if prob <= 0.1:
-                    action_idx = 2
-                    intended = False
-                elif prob <= 0.2:
-                    action_idx = 3
-                    intended = False
-                else:
-                    action_idx = 0
-                    intended = True
-        
-            row, col = self._get_2d_axis(state)
-            if action_idx == 0:
-                row -= 1
-            elif action_idx == 1:
-                row += 1
-            elif action_idx == 2:
-                col -= 1
+        if (not determistic) and (action_idx == 0):
+            prob = random.random()
+            if prob <= 0.1:
+                action_idx = 2
+            elif prob <= 0.2:
+                action_idx = 3
             else:
-                col += 1
+                action_idx = 0
+                        
+        row, col = self._get_2d_axis(state)
+        if action_idx == 0:
+            row -= 1
+        elif action_idx == 1:
+            row += 1
+        elif action_idx == 2:
+            col -= 1
+        else:
+            col += 1
 
-            valid = self._is_valid(row, col)
-            if valid:
-                self.state = (row, col)
-                new_state = self.get_state()
-                reward = self.step_reward
-                if (row == 0) and (col == 3):
-                    reward = 1
-                if (row == 1) and (col == 3):
-                    reward = -1
-                break
-            elif intended:
-                reward = -100
-                break
-
+        valid = self._is_valid(row, col)
+        if valid:
+            self.state = (row, col)
+            new_state = self.get_state()
+            reward = self.step_reward
+            if (row == 0) and (col == 3):
+                reward = 1
+            if (row == 1) and (col == 3):
+                reward = -1
+            
         return reward, new_state, valid
 
     def get_num_actions(self):
