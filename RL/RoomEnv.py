@@ -7,14 +7,14 @@ class RoomEnv():
     Please refer the video starting from 26:52 for the details of the example
     https://www.youtube.com/watch?v=QDzM8r3WgBw
     """
-    def __init__(self):
+    def __init__(self, step_reward=-0.04):
         # a room depicted by a matrix
         self.num_rows = 3
         self.num_cols = 4
         # 0 move up, 1 move down, 2 move left, 3 move right
         self.actions = [0, 1, 2, 3] 
         # default reward per move
-        self.step_reward = -0.04
+        self.step_reward = step_reward
         # lasted valid state, initial position is in left bottom unit
         self.state = (self.num_rows-1, 0)
 
@@ -90,6 +90,19 @@ class RoomEnv():
                 fit = False
         return self.get_state()
     """
+
+    def evaluate(self, policy):
+        accuracy = 0
+        if abs(self.step_reward - (-0.04)) <= 1e-6:
+            # Set the actions on end/invalid states to be -1
+            optimal = [3, 3, 3, -1, 0, -1, 0, -1, 0, 3, 0, 2]
+            policy[3] = -1
+            policy[5] = -1
+            policy[7] = -1
+            for (a,b) in zip(optimal, policy):
+                if a == b:
+                    accuracy += 1.0 / len(optimal)
+        return accuracy
 
     def _get_2d_axis(self, state):
         idx = np.argmax(state)

@@ -2,6 +2,7 @@ import random
 import numpy as np
 import tensorflow as tf
 
+
 class Experience(object):
     """Transition of (state, action, reward, next_state).
     The chain_end flag discripts whether next_state is the end of a Markov chain.
@@ -13,6 +14,7 @@ class Experience(object):
         self.reward = reward
         self.next_state = next_state
         self.chain_end = chain_end
+
 
 class TFBrain(object):
     """Q-learning network reinforcement learning based on TensorFlow  """  
@@ -40,6 +42,40 @@ class TFBrain(object):
         self.learning_rate = config.get('learning_rate', 0.001)
         self.batch_size = config.get('batch_size', 64)
 
+    def _build_network(self):
+        # MLP (multi-layer perceptron) network for Q-learning
+        # For training, the sample is (state, action) pair, and the label is 'fact' Q-value Q(s, a) = r + gamma * max(Q(ss, aa)) 
+        # For inferrence, the input is state, and the output of the network is the Q-values of all possible actions for the state.
+        self.state = tf.placeholder("float", [None, self.state_dimensions])
+        self.action = tf.placeholder("float", [None, self.num_actions])
+        self.fq_value = tf.placeholder("float", [None])
+        
+        # 1st fully connected layer of 64 hidden units
+        num_neurons_fc1 = 64
+        w_fc1 = tf.Variable(tf.truncated_normal((self.state_dimensions, num_neurons_fc1)))
+        b_fc1 = tf.Variable(tf.zeros(num_neurons_fc1))
+        fc1 = tf.add(tf.matmul(self.state, w_fc1), b_fc1)
+
+        # 2nd fully connected layer of 16 hidden units
+        num_neurons_fc2 = 16
+        w_fc2 = tf.Variable(tf.truncated_normal((num_neurons_fc1, num_neurons_fc2)))
+        b_fc2 = tf.Variable(tf.zeros(num_neurons_fc2))
+        fc2 = tf.add(tf.matmul(fc1, w_fc2), b_fc2)
+    
+        # 3rd fully connected layer of outputs (Q-values of all actions on the state)
+        w_fc3 = tf.Variable(tf.truncated_normal((num_neurons_fc2, self.num_actions)))
+        b_fc3 = tf.Variable(tf.zeros(self.num_actions))
+        self.q_values = tf.add(tf.matmul(fc2, w_fc3), b_fc3)
+        
+        # Get the Q-value of the (state, action) pair
+        q_value = tf.reduce_sum(tf.mul(self.q_values, self.action), reduction_indices = 1)
+        # The optimization goal is to minimize the discrepancy between 'inferred' Q-value and the 'fact' Q-value
+        cost = tf.reduce_mean(tf.square(self.fq_value - q_value))
+        self.optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate).minimize(cost)
+        
+        self.session = tf.Session()
+        self.session.run(tf.global_variables_initializer())
+    
     def learn(self, experience):
         """ Q-learning network implemented by TensorFlow.
         @param experience: instance of Experience.
@@ -65,7 +101,7 @@ class TFBrain(object):
             fq_value_batch = []
 
             # Step 3: Forward pass of the Q-learning network to calculate the Q-values of next_state, saying Q(ss, aa)
-            q_values_batch = self.session.run(self.fq_values, feed_dict={self.state:next_state_batch})
+            q_values_batch = self.session.run(self.q_values, feed_dict={self.state:next_state_batch})
 
             # Step 4: Update the Q-value of current state using the 'fact' of instant reward got from the experience
             for i in range(0, self.batch_size):
@@ -103,44 +139,14 @@ class TFBrain(object):
         if random.random() <= epsilon:
             idx = random.randrange(0, self.num_actions)
         else:
-            # Forward pass the network
-            q_values = self.session.run(self.fq_values, feed_dict={self.state:[state]})
+            # Forward pass the network to calculate Q-values for all actions and select the max one. 
+            q_values = self.session.run(self.q_values, feed_dict={self.state:[state]})
             idx = np.argmax(q_values)
         action = np.zeros(self.num_actions)      
         action[idx] = 1     
             
         return action
 
-
-    def _build_network(self):
-        self.state = tf.placeholder("float", [None, self.state_dimensions])
-        self.action = tf.placeholder("float", [None, self.num_actions])
-        self.fq_value = tf.placeholder("float", [None])
-        
-        num_neurons_fc1 = 64
-        num_neurons_fc2 = 16
-        
-        w_fc1 = tf.Variable(tf.truncated_normal((self.state_dimensions, num_neurons_fc1)))
-        b_fc1 = tf.Variable(tf.zeros(num_neurons_fc1))
-        fc1 = tf.add(tf.matmul(self.state, w_fc1), b_fc1)
-
-        w_fc2 = tf.Variable(tf.truncated_normal((num_neurons_fc1, num_neurons_fc2)))
-        b_fc2 = tf.Variable(tf.zeros(num_neurons_fc2))
-        fc2 = tf.add(tf.matmul(fc1, w_fc2), b_fc2)
-    
-        w_fc3 = tf.Variable(tf.truncated_normal((num_neurons_fc2, self.num_actions)))
-        b_fc3 = tf.Variable(tf.zeros(self.num_actions))
-        self.fq_values = tf.add(tf.matmul(fc2, w_fc3), b_fc3)
-        
-        q_value = tf.reduce_sum(tf.mul(self.fq_values, self.action), reduction_indices = 1)
-
-        cost = tf.reduce_mean(tf.square(self.fq_value - q_value))
-        
-        self.optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate).minimize(cost)
-        
-        self.session = tf.Session()
-        self.session.run(tf.global_variables_initializer())
-    
     def show_configs(self):
         print("num_actions:\t%d" % self.num_actions)
         print("state_dimensions:\t%d" % self.state_dimensions)
@@ -153,9 +159,3 @@ class TFBrain(object):
         print("epsilon_test_time:\t%f" % self.epsilon_test_time)
         print("learning_rate:\t%f" % self.learning_rate)
         print("batch_size:\t%d" % self.batch_size)
-    
-
-
-
-
-
