@@ -1,5 +1,6 @@
 from RoomEnv import RoomEnv
 from TFBrain import TFBrain
+from TFBrain import Experience
 import random
 import numpy as np
 from tqdm import tqdm
@@ -22,23 +23,20 @@ def play():
     brain = TFBrain(brain_config, learning=True)
 
     state = roomEnv.get_state()
-    print(state)
     max_steps = 10000
     i = 0
     for i in tqdm(range(max_steps)):
         action = brain.decide(state)
-#        reward, new_state, valid = roomEnv.react(state, action, determistic=True)
-        reward, new_state, valid = roomEnv.react(state, action, determistic=False)
-        endstate = roomEnv.is_endstate(new_state)
-        chain_end = endstate or (not valid)
-        brain.learn(state, action, reward, new_state, chain_end)
+        reward, next_state, valid = roomEnv.react(state, action, determistic=True)
+        chain_end = roomEnv.end_state(next_state) or not valid
+        experience = Experience(state, action, reward, next_state, chain_end)
+#        brain.learn(state, action, reward, next_state, chain_end)
+        brain.learn(experience)
 
-        if valid:
-            state = new_state
-            if endstate:
-                state = roomEnv.reset_state()
+        if chain_end:
+            state = roomEnv.reset_state()
         else:
-            state = roomEnv.get_state()
+            state = next_state
 
     for i in range(0, roomEnv.get_state_dimensions()):
         test_state = np.zeros(roomEnv.get_state_dimensions())

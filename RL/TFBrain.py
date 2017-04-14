@@ -3,24 +3,84 @@ import numpy as np
 import tensorflow as tf
 
 class Experience(object):
-    def __init__(self, state, action, reward, new_state, end_flag=False):
+    # Transition of (state, action, reward, next_state), with indication of whether ss is end-state  
+    def __init__(self, state, action, reward, new_state, chain_end=False):
         self.state = state
         self.action = action
         self.reward = reward
         self.new_state = new_state
-        self.end_flag = end_flag
+        self.chain_end = chain_end
 
 class TFBrain(object):
-    """
-    Q-learning network reinforcement learning based on TensorFlow
-    """
+    """Q-learning network reinforcement learning based on TensorFlow  """  
+    
     def __init__(self, config, learning=True):    
         self._init_configs(config)
         self._build_network()
-        self.experiences = []
-        self.age = 0
-        self.learning = learning
+        self.experiences = []  # Replay memory of experiences  
+        self.age = 0  # Effective learning steps (backward pass) occurred so far  
+        self.learning = learning # Learn model from the scratch or load existing model. 
+
+#    def learn(self, state, action, reward, new_state, chain_end=False):
+    def learn(self, experience):
+        """ Q-learning implemented by TensorFlow.
+        @param experience - Experience
+
+        """
+#        e = Experience(state, action, reward, new_state, chain_end)
+
+        if len(self.experiences) < self.experience_size:
+            self.experiences.append(experience)
+        else:
+            replace_index = random.randrange(self.experience_size)
+            self.experiences[replace_index] = experience
+
+        if(len(self.experiences) > max(self.start_learn_threshold, self.batch_size)):
+            batch = random.sample(self.experiences, self.batch_size)
+
+            state_batch = [e.state for e in batch]
+            action_batch = [e.action for e in batch]
+            reward_batch = [e.reward for e in batch]
+            new_state_batch = [e.new_state for e in batch]
+            chain_end_batch = [e.chain_end for e in batch]
+
+            q_value_fact_batch = []
+
+            # forward pass
+            q_values_batch = self.session.run(self.q_values, feed_dict={self.state:new_state_batch})
+
+            for i in range(0, self.batch_size):
+                if chain_end_batch[i]:
+                    q_value_fact_batch.append(reward_batch[i])
+                else:
+                    q_value_fact_batch.append(reward_batch[i] + self.gamma * np.max(q_values_batch[i]))
+            
+            #backward pass
+            self.session.run(self.optimizer, feed_dict={
+                self.state: state_batch,
+                self.action: action_batch,
+                self.q_value_fact: q_value_fact_batch
+            })
+            self.age += 1
         
+    def decide(self, state, determistic=False):
+        epsilon = 0
+        if self.learning and (not determistic):
+            epsilon = min(1.0, max(self.epsilon_min, 1.0-(self.age - self.learning_steps_burin)/(self.learning_steps_total - self.learning_steps_burin)))
+        else:
+            epsilon = self.epsilon_test_time
+        
+        action_index = 0
+        if random.random() <= epsilon:
+            action_index = random.randrange(0, self.num_actions)
+        else:
+            q_values = self.session.run(self.q_values, feed_dict={self.state:[state]})
+            action_index = np.argmax(q_values)
+        action = np.zeros(self.num_actions)      
+        action[action_index] = 1     
+            
+        return action
+
     def _init_configs(self, config):
         self.num_actions = config.get('num_actions', 5)
         self.state_dimensions = config.get('state_dimensions', 250)
@@ -79,62 +139,7 @@ class TFBrain(object):
         self.session = tf.Session()
         self.session.run(tf.global_variables_initializer())
     
-    def learn(self, state, action, reward, new_state, end_flag=False):
-        e = Experience(state, action, reward, new_state, end_flag)
-
-        if len(self.experiences) < self.experience_size:
-            self.experiences.append(e)
-        else:
-            replace_index = random.randrange(self.experience_size)
-            self.experiences[replace_index] = e
-
-        if(len(self.experiences) > max(self.start_learn_threshold, self.batch_size)):
-            batch = random.sample(self.experiences, self.batch_size)
-
-            state_batch = [e.state for e in batch]
-            action_batch = [e.action for e in batch]
-            reward_batch = [e.reward for e in batch]
-            new_state_batch = [e.new_state for e in batch]
-            end_flag_batch = [e.end_flag for e in batch]
-
-            q_value_fact_batch = []
-
-            # forward pass
-            q_values_batch = self.session.run(self.q_values, feed_dict={self.state:new_state_batch})
-
-            for i in range(0, self.batch_size):
-                if end_flag_batch[i]:
-                    q_value_fact_batch.append(reward_batch[i])
-                else:
-                    q_value_fact_batch.append(reward_batch[i] + self.gamma * np.max(q_values_batch[i]))
-            
-            #backward pass
-            self.session.run(self.optimizer, feed_dict={
-                self.state: state_batch,
-                self.action: action_batch,
-                self.q_value_fact: q_value_fact_batch
-            })
-            self.age += 1
-
     
-    def decide(self, state, determistic=False):
-        epsilon = 0
-        if self.learning and (not determistic):
-            epsilon = min(1.0, max(self.epsilon_min, 1.0-(self.age - self.learning_steps_burin)/(self.learning_steps_total - self.learning_steps_burin)))
-        else:
-            epsilon = self.epsilon_test_time
-        
-        action_index = 0
-        if random.random() <= epsilon:
-            action_index = random.randrange(0, self.num_actions)
-        else:
-            q_values = self.session.run(self.q_values, feed_dict={self.state:[state]})
-            action_index = np.argmax(q_values)
-        action = np.zeros(self.num_actions)      
-        action[action_index] = 1     
-            
-        return action
-
 
 
 

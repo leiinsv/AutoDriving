@@ -20,7 +20,7 @@ class RoomEnv():
 
     def react(self, state, action, determistic=False):
         reward = 0.0
-        new_state = np.zeros_like(state)
+        next_state = np.zeros_like(state)
         action_idx = np.argmax(action)
 
         if (not determistic) and (action_idx == 0):
@@ -45,14 +45,14 @@ class RoomEnv():
         valid = self._is_valid(row, col)
         if valid:
             self.state = (row, col)
-            new_state = self.get_state()
+            next_state = self.get_state()
             reward = self.step_reward
             if (row == 0) and (col == 3):
                 reward = 1
             if (row == 1) and (col == 3):
                 reward = -1
             
-        return reward, new_state, valid
+        return reward, next_state, valid
 
     def get_num_actions(self):
         return len(self.actions)
@@ -67,7 +67,7 @@ class RoomEnv():
         state[idx] = 1
         return state
 
-    def is_endstate(self, state):
+    def end_state(self, state):
         row, col = self._get_2d_axis(state)
         if row == 0 and col == 3:
             return True
