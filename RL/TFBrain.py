@@ -18,7 +18,6 @@ class TFBrain(object):
         self._init_configs(config)
         self._build_network()
         self.experiences = []
-        self.forward_passes = 0
         self.age = 0
         self.learning = learning
         
@@ -35,25 +34,25 @@ class TFBrain(object):
         self.learning_rate = config.get('learning_rate', 0.001)
         self.batch_size = config.get('batch_size', 64)
 
-        print(self.num_actions)
-        print(self.state_dimensions)
-        print(self.experience_size)
-        print(self.start_learn_threshold)
-        print(self.gamma)
-        print(self.learning_steps_total)
-        print(self.learning_steps_burin)
-        print(self.epsilon_min)
-        print(self.epsilon_test_time)
-        print(self.learning_rate)
-        print(self.batch_size)
+        print("num_actions:\t%d" % self.num_actions)
+        print("state_dimensions:\t%d" % self.state_dimensions)
+        print("experience_size:\t%d" % self.experience_size)
+        print("start_learn_threshold:\t%d" % self.start_learn_threshold)
+        print("gamma:\t%f" % self.gamma)
+        print("learning_steps_total:\t%d" % self.learning_steps_total)
+        print("learning_steps_burin:\t%d" % self.learning_steps_burin)
+        print("epsilon:\t%f" % self.epsilon_min)
+        print("epsilon_test_time:\t%f" % self.epsilon_test_time)
+        print("learning_rate:\t%f" % self.learning_rate)
+        print("batch_size:\t%d" % self.batch_size)
     
     def _build_network(self):
         self.state = tf.placeholder("float", [None, self.state_dimensions])
         self.action = tf.placeholder("float", [None, self.num_actions])
         self.q_value_fact = tf.placeholder("float", [None])
         
-        num_neurons_fc1 = 100
-        num_neurons_fc2 = 10
+        num_neurons_fc1 = 64
+        num_neurons_fc2 = 16
         
         w_fc1 = tf.Variable(tf.truncated_normal((self.state_dimensions, num_neurons_fc1)))
         b_fc1 = tf.Variable(tf.zeros(num_neurons_fc1))

@@ -87,8 +87,9 @@ class RoomEnv():
             return False
 
     def reset_state(self):
-#        self.state = [2,0]
-#        return self.get_state()
+        self.state = [2,0]
+        return self.get_state()
+    """
         fit = False
         while not fit:
             row = random.randrange(self.num_rows)
@@ -98,6 +99,7 @@ class RoomEnv():
             if self.is_endstate(self.get_state()):
                 fit = False
         return self.get_state()
+    """
 
     def _get_2d_axis(self, state):
         idx = np.argmax(state)
