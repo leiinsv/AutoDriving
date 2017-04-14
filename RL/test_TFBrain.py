@@ -24,13 +24,12 @@ def play():
 
     state = roomEnv.get_state()
     max_steps = 10000
-    i = 0
     for i in tqdm(range(max_steps)):
-        action = brain.decide(state)
+        action = brain.decide(state, determistic=False)
         reward, next_state, valid = roomEnv.react(state, action, determistic=True)
         chain_end = roomEnv.end_state(next_state) or not valid
         experience = Experience(state, action, reward, next_state, chain_end)
-#        brain.learn(state, action, reward, next_state, chain_end)
+
         brain.learn(experience)
 
         if chain_end:
