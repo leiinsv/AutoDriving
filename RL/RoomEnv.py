@@ -17,8 +17,11 @@ class RoomEnv():
         self.step_reward = step_reward
         # lasted valid state, initial position is in left bottom unit
         self.state = (self.num_rows-1, 0)
+        self.initial_state = (self.num_rows-1, 0)
+        self.determistic = True
 
     def react(self, state, action, determistic=False):
+        self.determistic = determistic
         reward = 0.0
         next_state = np.zeros_like(state)
         action_idx = np.argmax(action)
@@ -67,6 +70,12 @@ class RoomEnv():
         state[idx] = 1
         return state
 
+    def get_initial_state(self):
+        state = np.zeros(self.num_rows * self.num_cols)
+        idx = self.initial_state[0] * self.num_cols + self.initial_state[1]
+        state[idx] = 1
+        return state
+    
     def end_state(self, state):
         row, col = self._get_2d_axis(state)
         if row == 0 and col == 3:
@@ -77,31 +86,26 @@ class RoomEnv():
             return False
 
     def reset_state(self):
-        self.state = [2,0]
-        return self.get_state()
-    """
-        fit = False
-        while not fit:
-            row = random.randrange(self.num_rows)
-            col = random.randrange(self.num_cols)
-            fit = self._is_valid(row, col)
-            self.state = (row, col)
-            if self.is_endstate(self.get_state()):
-                fit = False
-        return self.get_state()
-    """
+        state = self.get_state()
+        if self.end_state(state):
+           return self.get_initial_state()
+        else:
+            return state
 
     def evaluate(self, policy):
         accuracy = 0
-        if abs(self.step_reward - (-0.04)) <= 1e-6:
-            # Set the actions on end/invalid states to be -1
-            optimal = [3, 3, 3, -1, 0, -1, 0, -1, 0, 3, 0, 2]
-            policy[3] = -1
-            policy[5] = -1
-            policy[7] = -1
-            for (a,b) in zip(optimal, policy):
-                if a == b:
-                    accuracy += 1.0 / len(optimal)
+        # Set the actions on end/invalid states to be -1
+        policy[3] = -1
+        policy[5] = -1
+        policy[7] = -1
+        optimal = []
+        if self.determistic and (abs(self.step_reward - (-0.04)) <= 1e-6):
+            optimal = [3, 3, 3, -1, 0, -1, 0, -1, 3, 3, 0, 2]
+        if (not self.determistic) and (abs(self.step_reward - (-0.04)) <= 1e-6): 
+            optimal = [3, 3, 3, -1, 0, -1, 0, -1, 0, 2, 2, 2]
+        for (a,b) in zip(optimal, policy):
+            if a == b:
+                accuracy += 1.0 / len(optimal)
         return accuracy
 
     def _get_2d_axis(self, state):
