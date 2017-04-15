@@ -82,7 +82,6 @@ class TFBrain(object):
         @logic: for experience (s, a, r, ss), update Q(s, a) --> r + gamma * max(Q(ss, aa)) for all possible actions aa of ss
 
         """
-
         # Step 1: update replay memory
         if len(self.experiences) < self.experience_size:
             self.experiences.append(experience)
