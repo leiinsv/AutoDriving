@@ -25,7 +25,7 @@ def test_tfbrain():
     brain.show_configs()
 
     # Learning
-    state = roomEnv.get_state()
+    state = roomEnv.get_initial_state()
     max_steps = 10000
     print("Learning started:")
     for i in tqdm(range(max_steps)):

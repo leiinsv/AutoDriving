@@ -1,0 +1,7 @@
+TFBrain.py is the implementation of Deep Q-learning Network based on TensorFlow. 
+--1. The current implementation is a multi-layer perception network.
+--2. Please refer to test_TFBrain.py for example of usage
+
+RoomEnv.py is only for the purpose of illustrating the usage of TFBrain.py
+
+
