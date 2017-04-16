@@ -19,17 +19,20 @@ class Experience(object):
 class TFBrain(object):
     """Q-learning network reinforcement learning based on TensorFlow  """  
     
-    def __init__(self, config, learning=True):    
+    def __init__(self, config):
         self._init_configs(config)
-        self._build_network()
+        if self.network_type == 'mlp':
+            self._build_mlp_network()
+        else:
+            self._build_cnn_network()
         # Replay memory of experiences
         self.experiences = []
         # Effective learning steps occurred so far, to control explore vs. exploit
         self.age = 0
-        # Learn model from the scratch or load existing model
-        self.learning = learning
 
     def _init_configs(self, config):
+        self.network_type = config.get('network_type', 'mlp')
+        self.learning = config.get('learning', True)
         self.num_actions = config.get('num_actions', 5)
         self.state_dimensions = config.get('state_dimensions', 250)
         self.experience_size = config.get('experience_size', 3000)
@@ -42,7 +45,7 @@ class TFBrain(object):
         self.learning_rate = config.get('learning_rate', 0.001)
         self.batch_size = config.get('batch_size', 64)
 
-    def _build_network(self):
+    def _build_mlp_network(self):
         # MLP (multi-layer perceptron) network for Q-learning
         # For training, the sample is (state, action) pair, and the label is 'fact' Q-value Q(s, a) = r + gamma * max(Q(ss, aa)) 
         # For inferrence, the input is state, and the output of the network is the Q-values of all possible actions for the state.
@@ -147,6 +150,7 @@ class TFBrain(object):
         return action
 
     def show_configs(self):
+        print("-- network_type:\t%s" % self.network_type)
         print("-- num_actions:\t%d" % self.num_actions)
         print("-- state_dimensions:\t%d" % self.state_dimensions)
         print("-- experience_size:\t%d" % self.experience_size)

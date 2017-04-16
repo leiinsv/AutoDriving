@@ -8,6 +8,8 @@ from tqdm import tqdm
 def test_tfbrain():
     roomEnv = RoomEnv(step_reward = -0.04)
     brain_config = {
+        'network_type': 'mlp',
+        'learning': True,
         'num_actions': roomEnv.get_num_actions(),
         'state_dimensions': roomEnv.get_state_dimensions(),
         'experience_size': 300,
@@ -20,7 +22,8 @@ def test_tfbrain():
         'learning_rate': 0.001,
         'batch_size': 64
     }
-    brain = TFBrain(brain_config, learning=True)
+
+    brain = TFBrain(brain_config)
     print("Initialized reinforcement learning brain with the following configs:")
     brain.show_configs()
 
