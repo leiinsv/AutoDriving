@@ -1,7 +1,7 @@
 import random
 import numpy as np
 import tensorflow as tf
-
+from tensorflow.contrib.layers import flatten
 
 class Experience(object):
     """Transition of (state, action, reward, next_state).
@@ -57,13 +57,13 @@ class TFBrain(object):
         num_neurons_fc1 = 64
         w_fc1 = tf.Variable(tf.truncated_normal((self.state_dimensions, num_neurons_fc1)))
         b_fc1 = tf.Variable(tf.zeros(num_neurons_fc1))
-        fc1 = tf.add(tf.matmul(self.state, w_fc1), b_fc1)
+        fc1   = tf.add(tf.matmul(self.state, w_fc1), b_fc1)
 
         # 2nd fully connected layer of 16 hidden units
         num_neurons_fc2 = 16
         w_fc2 = tf.Variable(tf.truncated_normal((num_neurons_fc1, num_neurons_fc2)))
         b_fc2 = tf.Variable(tf.zeros(num_neurons_fc2))
-        fc2 = tf.add(tf.matmul(fc1, w_fc2), b_fc2)
+        fc2   = tf.add(tf.matmul(fc1, w_fc2), b_fc2)
     
         # 3rd fully connected layer of outputs (Q-values of all actions on the state)
         w_fc3 = tf.Variable(tf.truncated_normal((num_neurons_fc2, self.num_actions)))
@@ -79,6 +79,54 @@ class TFBrain(object):
         self.session = tf.Session()
         self.session.run(tf.global_variables_initializer())
     
+    def _build_cnn_network(self):
+        # CNN (convolutional neural network) for Q-learning
+        # For training, the sample is (state, action) pair, and the label is 'fact' Q-value Q(s, a) = r + gamma * max(Q(ss, aa)) 
+        # For inferrence, the input is state, and the output of the network is the Q-values of all possible actions for the state.
+#        self.state = tf.placeholder("float", [None, 80, 80, 1])
+        self.state = tf.placeholder("float", [None, 80, 80, 1])
+        self.action = tf.placeholder("float", [None, self.num_actions])
+        self.fq_value = tf.placeholder("float", [None])
+
+        mu = 0
+        sigma = 0.01
+        
+        conv1_W = tf.Variable(tf.truncated_normal(shape=(8, 8, 1, 32), mean = mu, stddev = sigma))
+#        conv1_W = tf.Variable(tf.truncated_normal(shape=(8, 8, 4, 32), mean = mu, stddev = sigma))
+        conv1_b = tf.Variable(tf.zeros(32))
+        conv1   = tf.nn.conv2d(self.state, conv1_W, strides=[1, 4, 4, 1], padding='SAME') + conv1_b
+        conv1   = tf.nn.relu(conv1)
+        conv1   = tf.nn.max_pool(conv1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+        
+        conv2_W = tf.Variable(tf.truncated_normal(shape=(4, 4, 32, 64), mean = mu, stddev = sigma))
+        conv2_b = tf.Variable(tf.zeros(64))
+        conv2   = tf.nn.conv2d(conv1, conv2_W, strides=[1, 2, 2, 1], padding='SAME') + conv2_b
+        conv2   = tf.nn.relu(conv2)
+
+        conv3_W = tf.Variable(tf.truncated_normal(shape=(3, 3, 64, 64), mean = mu, stddev = sigma))
+        conv3_b = tf.Variable(tf.zeros(64))
+        conv3   = tf.nn.conv2d(conv2, conv3_W, strides=[1, 1, 1, 1], padding='SAME') + conv3_b
+        conv3   = tf.nn.relu(conv3)
+
+        fc0     = flatten(conv3)
+        fc1_W   = tf.Variable(tf.truncated_normal(shape=(1600, 512), mean = mu, stddev = sigma))
+        fc1_b   = tf.Variable(tf.zeros(512))
+        fc1     = tf.matmul(fc0, fc1_W) + fc1_b
+        fc1     = tf.nn.relu(fc1)
+        
+        fc2_W  = tf.Variable(tf.truncated_normal(shape=(512, self.num_actions), mean = mu, stddev = sigma))
+        fc2_b  = tf.Variable(tf.zeros(self.num_actions))
+        self.q_values = tf.matmul(fc1, fc2_W) + fc2_b
+
+        # Get the Q-value of the (state, action) pair
+        q_value = tf.reduce_sum(tf.mul(self.q_values, self.action), reduction_indices = 1)
+        # The optimization goal is to minimize the discrepancy between 'inferred' Q-value and the 'fact' Q-value
+        cost = tf.reduce_mean(tf.square(self.fq_value - q_value))
+        self.optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate).minimize(cost)
+        
+        self.session = tf.Session()
+        self.session.run(tf.global_variables_initializer())
+
     def learn(self, experience):
         """ Q-learning network implemented by TensorFlow.
         @param experience: instance of Experience.
