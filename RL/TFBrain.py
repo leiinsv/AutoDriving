@@ -2,6 +2,7 @@ import random
 import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.layers import flatten
+from collections import deque
 
 class Experience(object):
     """Transition of (state, action, reward, next_state).
@@ -26,9 +27,12 @@ class TFBrain(object):
         else:
             self._build_cnn_network()
         # Replay memory of experiences
-        self.experiences = []
+        self.epsilon = 0.0
+#        self.experiences = []
+        self.experiences = deque()
         # Effective learning steps occurred so far, to control explore vs. exploit
         self.age = 0
+        
 
     def _init_configs(self, config):
         self.network_type = config.get('network_type', 'mlp')
@@ -36,14 +40,19 @@ class TFBrain(object):
         self.num_actions = config.get('num_actions', 5)
         self.state_dimensions = config.get('state_dimensions', 250)
         self.experience_size = config.get('experience_size', 3000)
-        self.start_learn_threshold = config.get('start_learn_threshold', 500)
+#        self.start_learn_threshold = config.get('start_learn_threshold', 500)
+        self.observe_age = config.get('observe_age', 500)
         self.gamma = config.get('gamma', 0.7)
-        self.learning_steps_total = config.get('learning_steps_total', 10000)
-        self.learning_steps_burin = config.get('learning_steps_burin', 1000)
+#        self.learning_steps_total = config.get('learning_steps_total', 10000)
+        self.explore_age = config.get('explore_age', 10000)
+        
+#        self.learning_steps_burin = config.get('learning_steps_burin', 1000)
+        self.explore_burin = config.get('explore_burin', 1000)
         self.epsilon_min = config.get('epsilon_min', 0.0)
         self.epsilon_test_time = config.get('epsilon_test_time', 0.0)
         self.learning_rate = config.get('learning_rate', 0.001)
         self.batch_size = config.get('batch_size', 64)
+        self.lookback_window = config.get('lookback_window', 3)
 
     def _build_mlp_network(self):
         # MLP (multi-layer perceptron) network for Q-learning
@@ -78,43 +87,52 @@ class TFBrain(object):
         
         self.session = tf.Session()
         self.session.run(tf.global_variables_initializer())
+
+        self.saver = tf.train.Saver()
+        checkpoint = tf.train.get_checkpoint_state("saved_networks")
+        if checkpoint and checkpoint.model_checkpoint_path:
+            self.saver.restore(self.session, checkpoint.model_checkpoint_path)
+            print("Successfully loaded:", checkpoint.model_checkpoint_path)
+        else:
+            print("Could not find old network weights")
+
     
     def _build_cnn_network(self):
         # CNN (convolutional neural network) for Q-learning
         # For training, the sample is (state, action) pair, and the label is 'fact' Q-value Q(s, a) = r + gamma * max(Q(ss, aa)) 
         # For inferrence, the input is state, and the output of the network is the Q-values of all possible actions for the state.
 #        self.state = tf.placeholder("float", [None, 80, 80, 1])
-        self.state = tf.placeholder("float", [None, 80, 80, 1])
+        input_channels = self.lookback_window + 1
+        self.state = tf.placeholder("float", [None, 80, 80, input_channels])
         self.action = tf.placeholder("float", [None, self.num_actions])
         self.fq_value = tf.placeholder("float", [None])
 
-        mu = 0
         sigma = 0.01
         
-        conv1_W = tf.Variable(tf.truncated_normal(shape=(8, 8, 1, 32), mean = mu, stddev = sigma))
-#        conv1_W = tf.Variable(tf.truncated_normal(shape=(8, 8, 4, 32), mean = mu, stddev = sigma))
+        conv1_W = tf.Variable(tf.truncated_normal(shape=(8, 8, input_channels, 32), stddev = sigma))
         conv1_b = tf.Variable(tf.zeros(32))
         conv1   = tf.nn.conv2d(self.state, conv1_W, strides=[1, 4, 4, 1], padding='SAME') + conv1_b
         conv1   = tf.nn.relu(conv1)
         conv1   = tf.nn.max_pool(conv1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
         
-        conv2_W = tf.Variable(tf.truncated_normal(shape=(4, 4, 32, 64), mean = mu, stddev = sigma))
+        conv2_W = tf.Variable(tf.truncated_normal(shape=(4, 4, 32, 64), stddev = sigma))
         conv2_b = tf.Variable(tf.zeros(64))
         conv2   = tf.nn.conv2d(conv1, conv2_W, strides=[1, 2, 2, 1], padding='SAME') + conv2_b
         conv2   = tf.nn.relu(conv2)
 
-        conv3_W = tf.Variable(tf.truncated_normal(shape=(3, 3, 64, 64), mean = mu, stddev = sigma))
+        conv3_W = tf.Variable(tf.truncated_normal(shape=(3, 3, 64, 64), stddev = sigma))
         conv3_b = tf.Variable(tf.zeros(64))
         conv3   = tf.nn.conv2d(conv2, conv3_W, strides=[1, 1, 1, 1], padding='SAME') + conv3_b
         conv3   = tf.nn.relu(conv3)
 
-        fc0     = flatten(conv3)
-        fc1_W   = tf.Variable(tf.truncated_normal(shape=(1600, 512), mean = mu, stddev = sigma))
+#        fc0     = flatten(conv3)
+        fc0 = tf.reshape(conv3, [-1,1600])
+        fc1_W   = tf.Variable(tf.truncated_normal(shape=(1600, 512), stddev = sigma))
         fc1_b   = tf.Variable(tf.zeros(512))
         fc1     = tf.matmul(fc0, fc1_W) + fc1_b
         fc1     = tf.nn.relu(fc1)
         
-        fc2_W  = tf.Variable(tf.truncated_normal(shape=(512, self.num_actions), mean = mu, stddev = sigma))
+        fc2_W  = tf.Variable(tf.truncated_normal(shape=(512, self.num_actions), stddev = sigma))
         fc2_b  = tf.Variable(tf.zeros(self.num_actions))
         self.q_values = tf.matmul(fc1, fc2_W) + fc2_b
 
@@ -122,11 +140,20 @@ class TFBrain(object):
         q_value = tf.reduce_sum(tf.mul(self.q_values, self.action), reduction_indices = 1)
         # The optimization goal is to minimize the discrepancy between 'inferred' Q-value and the 'fact' Q-value
         cost = tf.reduce_mean(tf.square(self.fq_value - q_value))
-        self.optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate).minimize(cost)
+        self.optimizer = tf.train.AdamOptimizer(1e-6).minimize(cost) 
         
         self.session = tf.Session()
         self.session.run(tf.global_variables_initializer())
 
+        self.saver = tf.train.Saver()
+        checkpoint = tf.train.get_checkpoint_state("saved_networks")
+        if checkpoint and checkpoint.model_checkpoint_path:
+            self.saver.restore(self.session, checkpoint.model_checkpoint_path)
+            print("Successfully loaded:", checkpoint.model_checkpoint_path)
+        else:
+            print("Could not find old network weights")
+
+    
     def learn(self, experience):
         """ Q-learning network implemented by TensorFlow.
         @param experience: instance of Experience.
@@ -134,13 +161,13 @@ class TFBrain(object):
 
         """
         # Step 1: update replay memory
-        if len(self.experiences) < self.experience_size:
-            self.experiences.append(experience)
-        else:
-            replace_index = random.randrange(self.experience_size)
-            self.experiences[replace_index] = experience
 
-        if(len(self.experiences) > max(self.start_learn_threshold, self.batch_size)):
+        self.experiences.append(experience)
+        if len(self.experiences) > self.experience_size:
+            self.experiences.popleft()
+
+#        if(len(self.experiences) > max(self.start_learn_threshold, self.batch_size)):
+        if self.age > self.observe_age and len(self.experiences) > self.batch_size:
             # Step 2: Sample training batch from replay memory
             batch = random.sample(self.experiences, self.batch_size)
             state_batch = [e.state for e in batch]
@@ -168,7 +195,21 @@ class TFBrain(object):
                 self.action: action_batch,
                 self.fq_value: fq_value_batch
             })
-            self.age += 1
+
+        self.age += 1
+
+        stage = ""
+        if self.age <= self.observe_age:
+            stage = "observe"
+        elif self.age <= self.explore_age:
+            stage = "explore"
+        else:
+            stage = "train"
+        if self.network_type == 'cnn' and self.age % 100 == 0:
+            print("ITERATIONS: ", self.age, "\tSTAGE: ", stage, "\tEPSILON: ", self.epsilon )
+
+        if self.age % 10000 == 0:                                                                                                                                    
+            self.saver.save(self.session, 'saved_networks/' + 'network' + '-dqn', global_step = self.age)
         
     def decide(self, state, determistic=True):
         """ Predict the best action for the state by forwarding pass the network
@@ -178,35 +219,48 @@ class TFBrain(object):
         if not determistic:
             assert(self.learning is True)
 
-        epsilon = 0
         if self.learning and (not determistic):
             # Purely 'explore' before the learning has proceeded at least learning_steps_burin times.
-            epsilon = min(1.0, max(self.epsilon_min, 1.0-(self.age - self.learning_steps_burin)/(self.learning_steps_total - self.learning_steps_burin)))
+            self.epsilon = min(1.0, max(self.epsilon_min, 1.0-(self.age - self.explore_burin)/(self.explore_age - self.explore_burin)))
         else:
-            epsilon = self.epsilon_test_time
+            self.epsilon = self.epsilon_test_time
 
+        action = np.zeros(self.num_actions)
         idx = 0
-        if random.random() <= epsilon:
-            idx = random.randrange(0, self.num_actions)
+        if random.random() <= self.epsilon:
+            idx = random.randrange(self.num_actions)
         else:
             # Forward pass the network to calculate Q-values for all actions and select the max one. 
             q_values = self.session.run(self.q_values, feed_dict={self.state:[state]})
             idx = np.argmax(q_values)
-        action = np.zeros(self.num_actions)      
         action[idx] = 1     
             
         return action
 
     def show_configs(self):
-        print("-- network_type:\t%s" % self.network_type)
-        print("-- num_actions:\t%d" % self.num_actions)
-        print("-- state_dimensions:\t%d" % self.state_dimensions)
-        print("-- experience_size:\t%d" % self.experience_size)
-        print("-- start_learn_threshold:\t%d" % self.start_learn_threshold)
-        print("-- gamma:\t%f" % self.gamma)
-        print("-- learning_steps_total:\t%d" % self.learning_steps_total)
-        print("-- learning_steps_burin:\t%d" % self.learning_steps_burin)
-        print("-- epsilon:\t%f" % self.epsilon_min)
-        print("-- epsilon_test_time:\t%f" % self.epsilon_test_time)
-        print("-- learning_rate:\t%f" % self.learning_rate)
-        print("-- batch_size:\t%d" % self.batch_size)
+        if self.network_type == 'mlp':
+            print("-- network_type:\t%s" % self.network_type)
+            print("-- num_actions:\t%d" % self.num_actions)
+            print("-- state_dimensions:\t%d" % self.state_dimensions)
+            print("-- experience_size:\t%d" % self.experience_size)
+            print("-- observe_age:\t%d" % self.observe_age)
+            print("-- gamma:\t%f" % self.gamma)
+            print("-- explore_age:\t%d" % self.explore_age)
+            print("-- explore_burin:\t%d" % self.explore_burin)
+            print("-- epsilon_min:\t%f" % self.epsilon_min)
+            print("-- epsilon_test_time:\t%f" % self.epsilon_test_time)
+            print("-- learning_rate:\t%f" % self.learning_rate)
+            print("-- batch_size:\t%d" % self.batch_size)
+        else:
+            print("-- network_type:\t%s" % self.network_type)
+            print("-- num_actions:\t%d" % self.num_actions)
+            print("-- experience_size:\t%d" % self.experience_size)
+            print("-- observe_age:\t%d" % self.observe_age)
+            print("-- gamma:\t%f" % self.gamma)
+            print("-- explore_age:\t%d" % self.explore_age)
+            print("-- explore_burin:\t%d" % self.explore_burin)
+            print("-- epsilon_min:\t%f" % self.epsilon_min)
+            print("-- epsilon_test_time:\t%f" % self.epsilon_test_time)
+            print("-- batch_size:\t%d" % self.batch_size)
+            print("-- lookback_window:\t%d" % self.lookback_window)
+            
