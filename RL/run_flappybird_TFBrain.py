@@ -25,7 +25,7 @@ def proceed_state(state, next_observation):
     next_state = np.append(state[:,:,1:], next_observation, axis = 2)
     return next_state
 
-def test_tfbrain():
+def learn_flappybird():
     brain_config = {
         'network_type': 'cnn',
         'learning': True,
@@ -33,7 +33,7 @@ def test_tfbrain():
         'experience_size': 50000,
         'gamma': 0.99,
         'observe_age': 1000,
-        'explore_age': 1000000,
+        'explore_age': 300000,
         'explore_burin': 1000,
         'epsilon_min': 0.0,
         'epsilon_test_time': 0.0,
@@ -60,16 +60,52 @@ def test_tfbrain():
         else:
             # Do nothing
             action = np.array([1,0])
+        i += 1
         next_observation, reward, chain_end = bird_env.frame_step(action)
         next_observation = preprocess(next_observation)
         next_state = proceed_state(state, next_observation)
         experience = Experience(state, action, reward, next_state, chain_end)
         brain.learn(experience)
         state = next_state
+
+def play_flappybird():
+    brain_config = {
+        'network_type': 'cnn',
+        'learning': False,
+        'num_actions': 2,
+        'lookback_window': 3
+    }
+
+    brain = TFBrain(brain_config)
+    brain.show_configs()
+    
+    bird_env = game.GameState()
+    frame_per_action = 1
+    
+    action = np.array([1,0])
+    observation, reward, chain_end = bird_env.frame_step(action)
+    observation = preprocess(observation)
+    observation = np.reshape(observation, (observation.shape[0], observation.shape[1]))
+    state = init_state(observation)
+
+    i = 0
+    while 1!= 0:
+        if i % frame_per_action == 0:
+            action = brain.decide(state, determistic=True)
+        else:
+            # Do nothing
+            action = np.array([1,0])
         i += 1
+        next_observation, reward, chain_end = bird_env.frame_step(action)
+        next_observation = preprocess(next_observation)
+        next_state = proceed_state(state, next_observation)
+        experience = Experience(state, action, reward, next_state, chain_end)
+        state = next_state
+
 
 def main():
-    test_tfbrain()
+    learn_flappybird()
+    # play_flappybird()
 
 if __name__ == '__main__':
     main()  

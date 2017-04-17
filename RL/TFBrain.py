@@ -154,7 +154,7 @@ class TFBrain(object):
         if len(self.experiences) > self.experience_size:
             self.experiences.popleft()
 
-        if self.age > self.observe_age and len(self.experiences) > self.batch_size:
+        if self.learning and self.age > self.observe_age and len(self.experiences) > self.batch_size:
             # Step 2: Sample training batch from replay memory
             batch = random.sample(self.experiences, self.batch_size)
             state_batch = [e.state for e in batch]
