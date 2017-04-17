@@ -48,9 +48,7 @@ def test_tfbrain():
     frame_per_action = 1
     
     action = np.array([1,0])
-    # state, reward, chain_end = bird_env.frame_step(action)
     observation, reward, chain_end = bird_env.frame_step(action)
-    # state = preprocess(state)
     observation = preprocess(observation)
     observation = np.reshape(observation, (observation.shape[0], observation.shape[1]))
     state = init_state(observation)

@@ -2,8 +2,8 @@ TFBrain.py is the implementation of Deep Q-learning Network based on TensorFlow.
 
 1. It has both an MLP (multi-layer perception) implementation and a CNN (convolutional neural network) implementation 
 The current implementation is a multi-layer perception network.
-2. For the MLP implementation, Please refer to test_TFBrain.py for example of usage
-3. For the CNN implementation, please refer to play_FlappyBird.py for example of usage
+2. For the MLP implementation, Please refer to run_room_TFBrain.py for example of usage
+3. For the CNN implementation, please refer to run_flappybird_TFBrain.py for example of usage
 
 RoomEnv.py is only for the purpose of illustrating the usage of TFBrain.py
 
