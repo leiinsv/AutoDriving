@@ -28,25 +28,18 @@ class TFBrain(object):
             self._build_cnn_network()
         # Replay memory of experiences
         self.epsilon = 0.0
-#        self.experiences = []
         self.experiences = deque()
-        # Effective learning steps occurred so far, to control explore vs. exploit
         self.age = 0
         
-
     def _init_configs(self, config):
         self.network_type = config.get('network_type', 'mlp')
         self.learning = config.get('learning', True)
         self.num_actions = config.get('num_actions', 5)
         self.state_dimensions = config.get('state_dimensions', 250)
         self.experience_size = config.get('experience_size', 3000)
-#        self.start_learn_threshold = config.get('start_learn_threshold', 500)
         self.observe_age = config.get('observe_age', 500)
         self.gamma = config.get('gamma', 0.7)
-#        self.learning_steps_total = config.get('learning_steps_total', 10000)
         self.explore_age = config.get('explore_age', 10000)
-        
-#        self.learning_steps_burin = config.get('learning_steps_burin', 1000)
         self.explore_burin = config.get('explore_burin', 1000)
         self.epsilon_min = config.get('epsilon_min', 0.0)
         self.epsilon_test_time = config.get('epsilon_test_time', 0.0)
@@ -95,20 +88,17 @@ class TFBrain(object):
             print("Successfully loaded:", checkpoint.model_checkpoint_path)
         else:
             print("Could not find old network weights")
-
     
     def _build_cnn_network(self):
         # CNN (convolutional neural network) for Q-learning
         # For training, the sample is (state, action) pair, and the label is 'fact' Q-value Q(s, a) = r + gamma * max(Q(ss, aa)) 
         # For inferrence, the input is state, and the output of the network is the Q-values of all possible actions for the state.
-#        self.state = tf.placeholder("float", [None, 80, 80, 1])
         input_channels = self.lookback_window + 1
         self.state = tf.placeholder("float", [None, 80, 80, input_channels])
         self.action = tf.placeholder("float", [None, self.num_actions])
         self.fq_value = tf.placeholder("float", [None])
 
         sigma = 0.01
-        
         conv1_W = tf.Variable(tf.truncated_normal(shape=(8, 8, input_channels, 32), stddev = sigma))
         conv1_b = tf.Variable(tf.zeros(32))
         conv1   = tf.nn.conv2d(self.state, conv1_W, strides=[1, 4, 4, 1], padding='SAME') + conv1_b
@@ -125,8 +115,7 @@ class TFBrain(object):
         conv3   = tf.nn.conv2d(conv2, conv3_W, strides=[1, 1, 1, 1], padding='SAME') + conv3_b
         conv3   = tf.nn.relu(conv3)
 
-#        fc0     = flatten(conv3)
-        fc0 = tf.reshape(conv3, [-1,1600])
+        fc0     = flatten(conv3)
         fc1_W   = tf.Variable(tf.truncated_normal(shape=(1600, 512), stddev = sigma))
         fc1_b   = tf.Variable(tf.zeros(512))
         fc1     = tf.matmul(fc0, fc1_W) + fc1_b
@@ -152,7 +141,6 @@ class TFBrain(object):
             print("Successfully loaded:", checkpoint.model_checkpoint_path)
         else:
             print("Could not find old network weights")
-
     
     def learn(self, experience):
         """ Q-learning network implemented by TensorFlow.
@@ -166,7 +154,6 @@ class TFBrain(object):
         if len(self.experiences) > self.experience_size:
             self.experiences.popleft()
 
-#        if(len(self.experiences) > max(self.start_learn_threshold, self.batch_size)):
         if self.age > self.observe_age and len(self.experiences) > self.batch_size:
             # Step 2: Sample training batch from replay memory
             batch = random.sample(self.experiences, self.batch_size)
@@ -197,7 +184,6 @@ class TFBrain(object):
             })
 
         self.age += 1
-
         stage = ""
         if self.age <= self.observe_age:
             stage = "observe"
